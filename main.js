@@ -2,6 +2,7 @@ const {program} = require('commander');
 const path = require('path');
 const http = require('http')
 const fs = require('fs').promises;
+const superagent = require('superagent');
 
 program
   .requiredOption('-h, --host <address>', 'адреса сервера') 
@@ -11,6 +12,15 @@ program
 program.parse();
 
 const options = program.opts();
+
+const fetchImageFromHttpCat = async (statusCode) => {
+    try {
+        const response = await superagent.get(`https://http.cat/${statusCode}`);
+        return response.body;
+    } catch (error) {
+        return null;
+    }
+};
 
 const requestListener = async function (req, res) {
     const fileName = req.url.slice(1);
@@ -23,18 +33,28 @@ const requestListener = async function (req, res) {
     switch (req.method) {
         case 'GET':
             try {
-                const data = await fs.readFile(filePath);
+                let imageData;
+                try {
+                    imageData = await fs.readFile(filePath);
+                } catch (error) {
+                    if (error.code === 'ENOENT') {
+                        imageData = await fetchImageFromHttpCat(fileName);
+                        if (!imageData) {
+                            res.statusCode = 404;
+                            return res.end('Not Found');
+                        }
+                        await fs.writeFile(filePath, imageData);
+                    } else {
+                        throw error;
+                    }
+                }
+                
                 setImageHeaders();
                 res.statusCode = 200;
-                res.end(data);
+                res.end(imageData);
             } catch (error) {
-                if (error.code === 'ENOENT') {
-                    res.statusCode = 404;
-                    res.end('Not Found');
-                } else {
-                    res.statusCode = 500;
-                    res.end('Internal Server Error');
-                }
+                res.statusCode = 500;
+                res.end('Internal Server Error');
             }
             break;
         case 'PUT':
