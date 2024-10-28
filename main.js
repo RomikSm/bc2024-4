@@ -53,6 +53,21 @@ const requestListener = async function (req, res) {
             });
             break;
 
+        case 'DELETE':
+            try {
+                await fs.unlink(filePath);
+                res.statusCode = 200;
+                res.end('OK');
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    res.statusCode = 404;
+                    res.end('Not Found');
+                } else {
+                    res.statusCode = 500;
+                    res.end('Internal Server Error');
+                }
+            }
+            break;
         default:
             res.statusCode = 405;
             res.end('Method Not Allowed')
